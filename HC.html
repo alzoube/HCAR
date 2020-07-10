@@ -1,0 +1,774 @@
+<!doctype html>
+
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+
+   <style>
+  button {
+    margin: 2px;
+    padding: 4px;
+  }
+  video{
+    width: 320;
+    height: 240;
+  }
+  p{
+    display: inline;
+    font-size: 14px;
+  }
+  h6{
+    margin: 4px;
+    font-weight: lighter;
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  </style>
+       
+    </head>
+    <body>
+                  
+            <h6><span id="loading">Loading base model...</span> | <span id="videoStatus">Loading video...</span></h6> 
+
+            <p>              
+              My guess is: <span id="result1">...    </span><br><span id="result2"> ... </span>
+            </p>
+
+
+            <div id="log" class="alert alert-info" style="height:100px"></div>
+            <div id="logpos" class="alert alert-info"></div>
+            <video id="webcam" width="320" height="240" style="display:none;"></video>
+            <div style=" width:320px;height:240px;margin: 10px auto;;display:none;">
+                <canvas id="canvas" width="320" height="240" style="border: 3px solid orange;display:none;"></canvas>
+            </div>
+
+  <canvas id="canvas2" width="640" height="420" style="border: 3px solid skyblue;display:none;"></canvas>          
+            <canvas id="canvaz" width="227" height="227" style="border: 3px solid orange;display:none;"></canvas>
+        <script type="text/javascript" src="js/jsfeat-min.js"></script>
+        <script type="text/javascript" src="js/profiler.js"></script>
+        <script type="text/javascript" src="js/my_jsfeat_optical_flow_lk.js"></script> 
+
+        <script type="text/javascript" src="js/svd.js"></script> 
+        <script type="text/javascript" src="js/cv.js"></script> 
+        <script type="text/javascript" src="js/ar.js"></script> 
+
+
+      <script>
+            var width = 320;
+            var height = 240;
+            var imageData;
+            //var track =false, first =false, yes =false;
+            var debugImage, warpImage, homographyImage, pixels, homographyImageR, homographyImageG, homographyImageB;
+            var  aImageData =[];
+
+            var NoM = 2;
+            var count = [];
+            var ULx =[];
+            var ULy=[];
+
+
+            var  renderer, orthoScene, orthoCam, perspCam, perspScene,  controls;//scene, camera,
+			      let teapot,  cube, group;
+            var texture;
+
+            var intrinsic2, intrinsicInverse2;
+            
+            var canvaz, ctz, img ;
+
+
+            var label=[];
+            label[1]=label[0]=false;
+            var NoClass=0;
+            let detect=true;
+            let track=false;
+            let meshes = [teapot, cube];
+
+            let totalLoss = 0;
+      let NoC =8;
+            var gui,options,ctx,canvasWidth,canvasHeight, context, contextC, contextM;
+            let  image_xy1=[];
+ 
+
+
+            
+            var img_u8, corners, threshold;
+
+            var i_u8=[];
+
+            //var modelSize = 30.0; //millimeters
+            var markers, detector;
+            var    after = [];
+            var    before = [];
+            let homo3x3 =[];
+            let fhomo3x3=[];
+            var intrinsic, intrinsicInverse, R=[], U, V, W, t=[];
+            //let markerWorker;
+                
+            let sendToWorker = false;
+
+// let keyframe =true;
+// let frms=0, rate=5;
+
+let yaw0=[], pitch0=[], roll0=[];
+  let px0=[],py0=[],pz0=[];
+
+//let Ximage_xy, Xmodel_xy;
+let Ximage_xy1=[], Xmodel_xy1=[];
+
+//let once =true;
+let gframe=0;
+let ul=[], ur=[],ll=[],lr=[];
+
+ let model_xy1 = [-160, 120, 160, 120, 160, -120, -160, -120];  
+ Xmodel_xy1 = new Float64Array(model_xy1);
+
+let counter =0;
+let order =[];
+
+let xNo=0;
+let No = 0;
+let start =true;
+let resetTime =0;
+let resetTime2 =0;
+let okay =true;
+let NoTrgts =0;
+let tCount=0;
+let tmr=0;
+let twom=false;
+
+         
+      </script>  
+
+      <script>
+
+    var demo_opt = function(){
+    this.win_size = 15;
+    this.max_iterations = 30;
+    this.epsilon = 0.01;
+    this.min_eigen = 0.001;
+    this.threshold = 30;
+}
+
+function demo_app(videoWidth, videoHeight) {
+
+    ctx = canvas.getContext('2d');
+     context = canvas2.getContext('2d');
+    debugImage = context.createImageData(width, height);
+    warpImage = context.createImageData(224, 224);
+    homographyImageR = new CV.Image();
+    homographyImageB = new CV.Image();
+    homographyImageG = new CV.Image();
+    homographyImage = new CV.Image();
+
+    ctx.fillStyle = "rgb(0,255,0)";
+    ctx.strokeStyle = "rgb(0,255,0)";
+//ff
+    img_u8 = new jsfeat.matrix_t(width, height, jsfeat.U8_t | jsfeat.C1_t);
+
+    for(let j =0; j<NoM; j++){
+
+        before[j]=[];
+        after[j]=[];
+
+  }
+for(let i=0; i<NoM; i++){      
+
+    homo3x3[i] = new jsfeat.matrix_t(3,3,jsfeat.F32C1_t);
+    fhomo3x3[i] = new jsfeat.matrix_t(3,3,jsfeat.F32C1_t);
+    jsfeat.matmath.identity_3x3(homo3x3[i], 1.0);
+    jsfeat.matmath.identity_3x3(fhomo3x3[i], 1.0);
+    R[i] = new jsfeat.matrix_t(3,3,jsfeat.F32C1_t);
+    t[i] = new jsfeat.matrix_t(1,3,jsfeat.F32C1_t);
+
+}
+
+U = new jsfeat.matrix_t(3,3,jsfeat.F32C1_t);
+V = new jsfeat.matrix_t(3,3,jsfeat.F32C1_t);
+W = new jsfeat.matrix_t(1,3,jsfeat.F32C1_t);
+intrinsic = new jsfeat.matrix_t(3,3,jsfeat.F32C1_t);
+intrinsicInverse = new jsfeat.matrix_t(3,3,jsfeat.F32C1_t);
+
+intrinsic2 = new jsfeat.matrix_t(3,3,jsfeat.F32C1_t);
+intrinsicInverse2 = new jsfeat.matrix_t(3,3,jsfeat.F32C1_t);
+
+
+
+    intrinsic.data[0]=320;
+    intrinsic.data[1]=0.0;
+    intrinsic.data[2]=320/2;
+    intrinsic.data[3]=0;
+    intrinsic.data[4]=240;
+    intrinsic.data[5]=240/2;
+    intrinsic.data[6]=0;
+    intrinsic.data[7]=0;
+    intrinsic.data[8]=1;
+
+    intrinsic2.data[0]=320;
+    intrinsic2.data[1]=0.0;
+    intrinsic2.data[2]=0;
+    intrinsic2.data[3]=0;
+    intrinsic2.data[4]=240;
+    intrinsic2.data[5]=0;
+    intrinsic2.data[6]=0;
+    intrinsic2.data[7]=0;
+    intrinsic2.data[8]=1;
+
+
+    jsfeat.matmath.invert_3x3(intrinsic,intrinsicInverse);
+    jsfeat.matmath.invert_3x3(intrinsic2,intrinsicInverse2);
+    options = new demo_opt();
+}
+
+
+      function createImageC(Rd, G, B, dst){
+        let i = Rd.data.length, j = (i * 4) + 3;
+        
+        while(i --){
+          dst.data[j -= 4] = 255;
+          dst.data[j - 1] = B.data[i];
+          dst.data[j - 2] = G.data[i];
+          dst.data[j - 3] = Rd.data[i];
+        }
+        
+        return dst;
+      };
+  
+      function Scene3D(){
+  
+  
+                texture = new THREE.VideoTexture(video);
+                texture.minFilter = THREE.NearestFilter; 
+                texture.magFilter = THREE.NearestFilter; 
+                texture.generateMipmaps = false;
+                texture.type = THREE.UnsignedByteType;
+                texture.format =THREE.RGBAFormat;
+                
+                renderer = new THREE.WebGLRenderer();
+                renderer.setPixelRatio( window.devicePixelRatio );
+                renderer.setSize( width, height );
+                renderer.setClearColor(0xffffff);
+                //renderer.domElement.style.position="absolute"
+                renderer.autoClear = false; 
+                document.body.appendChild( renderer.domElement );
+                perspCam = new THREE.PerspectiveCamera(45, width/height, 0.1, 10000);
+                perspCam.position.set(0, 0, 0);
+                orthoCam = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, -10000, 10000);
+
+                orthoScene = new THREE.Scene();
+                perspScene = new THREE.Scene();
+
+                perspScene.add(perspCam);
+                orthoScene.add(orthoCam);
+                
+                var light = new THREE.AmbientLight( 0x303030 ); // soft white light
+                light.position.set(0.1, 0.3, -0.1);
+              perspScene.add( light );
+            
+                spotlight = new THREE.DirectionalLight(0xffffff, 0.2);
+              spotlight.position.set(1, 1, 1);
+              perspScene.add(spotlight);
+                var videoMaterial = new THREE.MeshBasicMaterial({
+                map: texture,
+               // overdraw: true
+                });
+                var videoGeometry = new THREE.PlaneBufferGeometry(1, 1);
+                var videoMesh = new THREE.Mesh(videoGeometry, videoMaterial);
+                videoMesh.position.set(0, 0, 0);
+                orthoScene.add(videoMesh);
+
+                var teapotGeometry = new THREE.TeapotBufferGeometry( 0.5 );              
+                var material = new THREE.MeshPhongMaterial( {
+                color: 0xff00ff,
+                } );
+                meshes[0] = new THREE.Mesh(teapotGeometry, material);  
+                perspScene.add( meshes[0] );
+                meshes[0].visible=false;
+
+          	  let		geometry3 = new THREE.BoxGeometry( 1, 1, 1 );
+              let material3 = new THREE.MeshBasicMaterial( { color: 0xf0ff00 ,    opacity: 0.85,
+                transparent: true} );
+              meshes[1] = new THREE.Mesh( geometry3, material3 );
+              perspScene.add( meshes[1] );
+  
+      }
+  //end scene
+
+         </script>
+
+
+    <!-- Load the latest version of TensorFlow.js -->
+        <script src="https://unpkg.com/@tensorflow/tfjs"></script>
+        <script src="https://unpkg.com/@tensorflow-models/mobilenet"></script>
+        <script src="https://unpkg.com/@tensorflow-models/knn-classifier"></script>
+        
+        <script src="callcallback.js"></script>
+        <script src="io.js"></script>
+        <script src="KnnClass.js"></script>
+       
+        <script type="text/javascript" src="js/three.min.js"></script>
+        <script src='js/geometries/TeapotBufferGeometry.js'></script>
+        
+        <script type="text/javascript">
+        "use strict";
+
+            // lets do some fun
+            var video = document.getElementById('webcam');
+            var videoStatus = document.getElementById('videoStatus');
+            var canvas = document.getElementById('canvas');
+
+            var canvas2 = document.getElementById('canvas2');
+
+            canvaz = document.getElementById("canvaz");
+           ctz = canvaz.getContext('2d');
+           
+
+// Grab all the DOM elements
+//var video = document.getElementById('video');
+  var loading = document.getElementById('loading');
+ var result1 = document.getElementById('result1');
+ var result2 = document.getElementById('result2');
+            
+            let Rot = new jsfeat.matrix_t(3,3,jsfeat.F32C1_t);
+            let  tx = new jsfeat.matrix_t(1,3,jsfeat.F32C1_t);
+
+
+
+
+// Create a webcam capture
+if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+  navigator.mediaDevices.getUserMedia({ video: true, facingMode: 'environment' }).then(function(stream) { 
+    video.srcObject = stream;
+    video.play();
+    demo_app(width, height);
+  });
+}
+            var stat = new profiler();
+
+//*****************************
+            let net;
+            const webcamElement = document.getElementById('webcam');
+            app();
+            const classifier = knnClassifier.create();
+            const KNNClass = new KNN();
+            KNNClass.load('./myKNNDataset.json', updateCounts);
+
+//*****************************
+
+  async function app() {
+
+    console.log('Loading mobilenet..');
+    net = await mobilenet.load();
+    console.log('Sucessfully loaded model');
+    
+      loading.innerText = 'Model  loaded !';
+      pixels = [];
+      detector = new AR.Detector();              
+
+          label[0]=label[1]=false;
+          
+
+          Scene3D();
+          tick();
+
+  }
+
+
+  function updateCounts() {
+
+      console.log("custom Model loaded"); 
+      const counts = KNNClass.getCountByLabel();
+  }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////?
+  function tick() {
+        //requestAnimationFrame(tick);
+        //console.log("   tick   ");
+        stat.new_frame();
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            ctx.drawImage(video, 0, 0, width, height);
+            imageData = ctx.getImageData(0, 0, width, height);
+
+            console.log( "  Detecting ");
+               markers =  detector.detect(imageData);
+                xNo=No;
+                No = markers.length;
+                NoTrgts = markers.length;
+                //console.log( "  xNo "+xNo); 
+                console.log( "  No of markers  "+No);
+                if(No > xNo  && No>1){
+                    twom=true;
+                    start=true;
+                   // tmr=0;                  
+                }
+                if(No < xNo  && No==1){
+                    //twom=true;
+                    start=true;
+                   // tmr=0;                  
+                }                
+
+
+                console.log( " start "+start); 
+                if(markers.length > 0){
+
+                    resetTime=0;
+                    if(start){
+                      
+                      label[0]=label[1]=false;
+                      drawWarpsC(detector.red,detector.green, detector.blue, detector.candidates);
+                    }
+                    else{
+                      //console.log( "  get4c "); 
+                      for (let i = 0; i <  markers.length; ++ i){
+                       
+                        get4C(markers, i);
+                        
+                      }
+requestAnimationFrame(tick);                      
+                    }               
+                }else{
+requestAnimationFrame(tick);
+                    resetTime++;
+                    if(resetTime>99){
+                     // sendToWorker=true;
+                      resetTime=0;
+                      start=true;
+                      //console.log( "  Reset ");
+                      meshes[0].visible =false;
+                      meshes[1].visible =false;
+                   
+                    }
+                }
+
+     
+      texture.needsUpdate =true;
+      renderer.clear();      
+      renderer.render(orthoScene, orthoCam);
+      renderer.clearDepth();
+      renderer.render(perspScene, perspCam);
+      
+
+      document.getElementById('log').innerHTML= stat.log();   
+      
+    }
+    else{requestAnimationFrame(tick);} 
+}
+////////////////////////////////////////////////////////////////////////////////////
+
+function get4C(mkr, i){
+
+  console.log( "  get4C "); 
+let marker, corner;
+let ax =new Float32Array(4);
+let ay =new Float32Array(4);
+let ays=new Float32Array(4);
+let axs=new Float32Array(4);
+
+      marker = mkr[i].corners;
+
+      for (let j = 0; j <4 ; ++ j){
+        corner = marker[j];
+        ax[j]=axs[j] = corner.x;
+        ay[j]=ays[j] = corner.y; 
+
+      }
+
+      ax.sort();
+      ay.sort();
+
+//upper corners
+
+      let i1 = ays.indexOf(ay[0]);
+      let i2 = ays.indexOf(ay[1]);
+      let x1 = axs[i1];
+      let x2 = axs[i2];
+
+      // 
+      if(x1<x2){
+        ul[0]=x1;
+        ul[1]=ays[i1];
+
+        ur[0]=x2;
+        ur[1]=ays[i2]
+        
+      }else{
+        ul[0]=x2
+        ul[1]=ays[i2]
+
+        ur[0]=x1
+        ur[1]=ays[i1]
+      }
+
+      i1 = ays.indexOf(ay[2]);
+      i2 = ays.indexOf(ay[3]);
+      x1 = axs[i1];
+      x2 = axs[i2];
+
+      if(x1<x2){
+        ll[0]=x1
+        ll[1]=ays[i1]
+
+        lr[0]=x2
+        lr[1]=ays[i2]
+        
+      }else{
+        ll[0]=x2
+        ll[1]=ays[i2]
+
+        lr[0]=x1
+        lr[1]=ays[i1]
+      }
+
+      image_xy1=[ul[0]- (width / 2),(height / 2) - ul[1],
+                 ur[0]- (width / 2) ,(height / 2)- ur[1], 
+                 lr[0]- (width / 2), (height / 2)- lr[1],
+                 ll[0]- (width / 2), (height / 2)-ll[1]];
+
+      Ximage_xy1[i]= new Float64Array(image_xy1);
+
+    ComputeFirstH(i); 
+
+}
+
+function ComputeFirstH(m) {
+  console.log( "  ComputeFirstH "); 
+  // motion kernel
+  let mm_kernel = new jsfeat.motion_model.homography2d();
+  
+  // construct correspondences
+  let j=0;
+  for(let i=0;i< 4;i++){
+  
+              before[j] = {"x":Xmodel_xy1[i<<1], "y":Xmodel_xy1[(i<<1)+1]};
+
+              after[j] =  {"x":Ximage_xy1[m][i<<1], "y":Ximage_xy1[m][(i<<1)+1]};
+
+              j++;
+  }  
+      mm_kernel.run(before, after, fhomo3x3[m], 4);
+      ComputeFirstPose(fhomo3x3[m], m);
+
+}
+
+
+function ComputeFirstPose(homography, m){
+  console.log( "  ComputeFirstPose "); 
+
+let h10 = homography.data[0];
+let h11 = homography.data[3];
+let h12 = homography.data[6];
+let h20 = homography.data[1];
+let h21 = homography.data[4];
+let h22 = homography.data[7];
+let h30 = homography.data[2];
+let h31 = homography.data[5];
+let h32 = homography.data[8];
+
+let r10, r11, r12;
+let r20, r21, r22;
+let r30, r31, r32;
+//var vT= new jsfeat.matrix_t(3,3,jsfeat.F32C1_t);
+
+//
+let invC0 = intrinsicInverse2.data[0];
+let invC1 = intrinsicInverse2.data[1];
+let invC2 = intrinsicInverse2.data[2];
+let invC3 = intrinsicInverse2.data[3];
+let invC4 = intrinsicInverse2.data[4];
+let invC5 = intrinsicInverse2.data[5];
+let invC6 = intrinsicInverse2.data[6];
+let invC7 = intrinsicInverse2.data[7];
+let invC8 = intrinsicInverse2.data[8];
+//
+let invH10 = invC0*h10 + invC1*h11 + invC2*h12;
+let invH11 = invC3*h10 + invC4*h11 + invC5*h12;
+let invH12 = invC6*h10 + invC7*h11 + invC8*h12;
+
+let lambda = Math.sqrt( invH10 * invH10 + invH11 * invH11 + invH12 * invH12 );
+
+//console.log("lda  :", lambda);  
+
+if (lambda == 0) return false;
+
+lambda = 1.0 / lambda;
+invC0 *= lambda;
+invC1 *= lambda;
+invC2 *= lambda;
+invC3 *= lambda;
+invC4 *= lambda;
+invC5 *= lambda;
+invC6 *= lambda;
+invC7 *= lambda;
+invC8 *= lambda;
+
+// Create normalized R1 & R2:
+r10 = invC0*h10 + invC1*h11 + invC2*h12;
+r11 = invC3*h10 + invC4*h11 + invC5*h12;
+r12 = invC6*h10 + invC7*h11 + invC8*h12;
+//
+r20 = invC0*h20 + invC1*h21 + invC2*h22;
+r21 = invC3*h20 + invC4*h21 + invC5*h22;
+r22 = invC6*h20 + invC7*h21 + invC8*h22;
+
+// Get R3 orthonormal to R1 and R2:
+r30 = r11 * r22 - r12 * r21;
+r31 = r12 * r20 - r10 * r22;
+r32 = r10 * r21 - r11 * r20;
+
+Rot.data[0] = r10;
+Rot.data[1] = r20;
+Rot.data[2] = r30;
+Rot.data[3] = r11;
+Rot.data[4] = r21;
+Rot.data[5] = r31;
+Rot.data[6] = r12;
+Rot.data[7] = r22;
+Rot.data[8] = r32;
+
+// Calculate Translation Vector T:
+tx.data[0] = (invC0*h30 + invC1*h31 + invC2*h32);
+tx.data[1] = (invC3*h30 + invC4*h31 + invC5*h32);
+tx.data[2] = (invC6*h30 + invC7*h31 + invC8*h32);//?
+
+jsfeat.linalg.svd_decompose(Rot, W, U, V, jsfeat.SVD_V_T);
+
+jsfeat.matmath.multiply_3x3(Rot, U, V);
+
+PrintFirstPose(m);
+
+}
+
+function PrintFirstPose(m){
+    console.log( " FirstPose");
+      yaw0[m] = -Math.atan2(Rot.data[2], Rot.data[8]);
+      pitch0[m] = -Math.asin(-Rot.data[5]);
+      roll0[m] = Math.atan2(Rot.data[3], Rot.data[4]);
+
+
+      px0[m] = tx.data[0]/320;
+      py0[m] = tx.data[1]/240;
+      pz0[m] = tx.data[2]/320;
+
+      var d = document.getElementById("logpos");
+d.innerHTML =" x: " +  ( px0[m]).toPrecision(2)
+            + " y: " + (py0[m]).toPrecision(2)
+            + " z: " + (pz0[m]).toPrecision(2)
+        + "<br/>"
+        + " ay: " + Math.round( 180.0/Math.PI*yaw0[m])
+        + " ax: " + Math.round(180.0/Math.PI*pitch0[m])
+        + " az: " + Math.round( 180.0/Math.PI*roll0[m]);
+
+
+if(label[0] ){
+  console.log( "  zero "); 
+ meshes[0].visible =true; 
+}
+
+if(label[1] ){
+  console.log( "  one "); 
+  meshes[1].visible =true;
+}
+
+
+let odx =order[m];
+console.log( "  m ", m);
+console.log( "  odx ", odx);
+
+if(odx>-1){
+    meshes[odx].position.x =  px0[m];
+    meshes[odx].position.y =  py0[m];
+    meshes[odx].position.z =  -pz0[m];
+      
+    meshes[odx].rotation.x = pitch0[m];
+    meshes[odx].rotation.y = yaw0[m];
+    meshes[odx].rotation.z =roll0[m]; 
+}
+
+}
+
+//Warp RGB markers & Classify
+async function drawWarpsC(red, green, blue, contours){
+  console.log("  drawWarpsC   ");
+      NoClass=0; 
+      tCount=0; 
+      //label[0]=label[1]=false;
+      counter =-1;
+      order[0]=order[1]=-1;
+      console.log("counter   "+counter);
+      let contour;
+
+      for(let i=0; i<contours.length; i++){
+        contour = contours[i];
+               
+        CV.warp(red, homographyImageR, contour, warpImage.width);
+        CV.warp(green, homographyImageG, contour, warpImage.width);
+        CV.warp(blue, homographyImageB, contour, warpImage.width);
+
+        aImageData[i] = createImageC(homographyImageR,homographyImageG,homographyImageB, warpImage);
+        
+        if (KNNClass.getNumLabels() > 0){
+            const features = net.infer(aImageData[i], 'conv_preds');
+
+            const res = await KNNClass.classify(features);
+            gotResultz(i, res);
+        }
+
+      }  
+} 
+
+
+// Show the resultz
+function gotResultz(err, data) {
+
+  tCount++;
+  
+    meshes[0].visible =false;
+    meshes[1].visible =false;
+ 
+  if(data.label =="0"){
+
+    if(!label[0]){
+    label[0]=true;
+    result1.innerText = data.label;
+ 
+    counter++;
+    meshes[0].visible =true;
+    console.log("counter   "+counter);
+    order[counter]=data.label;
+
+    get4C(markers, counter);
+    }   
+  }
+
+
+  if(data.label =="1"){
+    if(!label[1]){
+    label[1]=true;
+    result2.innerText = data.label;
+
+    counter++;
+    meshes[1].visible =true;
+    console.log("counter   "+counter);
+    order[counter]=data.label; 
+    get4C(markers, counter);    
+    }
+  }
+ 
+  if(label[0] || label[1]) NoClass=1;
+  if(label[0] && label[1] ) NoClass=2;
+
+  if(NoClass > 0 ){
+
+    start=false;  
+  }
+
+
+  if(tCount==NoTrgts){
+    requestAnimationFrame(tick);
+
+  }
+
+}
+
+        </script>
+    </body>
+</html>
